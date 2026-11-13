@@ -1,0 +1,15 @@
+@extends('layouts.app')
+
+@section('title', 'Inventory — MINEX Admin')
+
+@section('content')
+<section class="workspace-page admin-page"><div class="container"><div class="workspace-top"><div><p class="eyebrow"><span class="red-rule"></span>ADMIN / INVENTORY</p><h1>Physical stock. Reserved stock. Available stock.</h1><p>Parts enter stock only through a receipt or reasoned adjustment. Reserved units remain physical until a mechanic records actual use.</p></div><a class="text-link" href="{{ route('admin.dashboard') }}">← Workspace</a></div>
+    @if(session('status'))<div class="admin-note"><p>{{ session('status') }}</p></div>@endif @if($errors->any())<div class="admin-error">{{ $errors->first() }}</div>@endif
+    @forelse($variants as $variant)@php($stock = $variant->stockLevel)<article class="admin-record inventory-record"><details><summary><span class="record-number">{{ $variant->part->sku ?: $variant->sku ?: 'NO SKU' }}</span><span class="record-title">{{ $variant->part->name }} / {{ $variant->name }}</span><span class="record-status">{{ $stock ? number_format((float) $stock->available_quantity, 2) : '0.00' }} AVAILABLE</span></summary>
+        <div class="stock-summary"><span>Physical <strong>{{ number_format((float) ($stock?->physical_quantity ?? 0), 2) }}</strong></span><span>Reserved <strong>{{ number_format((float) ($stock?->reserved_quantity ?? 0), 2) }}</strong></span><span>Available <strong>{{ number_format((float) ($stock?->available_quantity ?? 0), 2) }}</strong></span><span>Reorder at <strong>{{ number_format((float) ($stock?->reorder_level ?? 0), 2) }}</strong></span></div>
+        <div class="admin-two-col compact-form"><form class="admin-form admin-form-grid" action="{{ route('admin.inventory.receive', $variant) }}" method="POST">@csrf<p class="eyebrow span-two">RECEIVE STOCK</p><label>Quantity<input type="number" name="quantity" min="0.01" step="0.01" required></label><label>Unit purchase cost (Rp)<input type="number" name="unit_cost_rupiah" min="0" required></label><label>Supplier/reference<input name="supplier_reference" maxlength="120"></label><label>Receipt note<input name="notes" maxlength="2000"></label><button class="button button-outline button-small span-two" type="submit">Receive stock</button></form>
+        @if($stock)<form class="admin-form admin-form-grid" action="{{ route('admin.inventory.update', $variant) }}" method="POST">@csrf @method('PATCH')<p class="eyebrow span-two">ADJUSTMENT / AUDITED</p><label>Physical change (+/−)<input type="number" name="quantity_delta" step="0.01" min="-100000" max="100000" required></label><label>Reorder level<input type="number" name="reorder_level" step="0.01" min="0" value="{{ $stock->reorder_level }}" required></label><label class="span-two">Reason<input name="reason" maxlength="2000" required></label><button class="button button-outline button-small span-two" type="submit">Save stock adjustment</button></form>@endif</div>
+    </details></article>@empty<div class="empty-state">No parts or variants have been catalogued yet.</div>@endforelse
+    <div class="admin-pagination">{{ $variants->links() }}</div>
+</div></section>
+@endsection

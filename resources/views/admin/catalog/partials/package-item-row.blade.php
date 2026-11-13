@@ -1,0 +1,10 @@
+<div class="package-item-row">
+    <label>Component<input name="items[{{ $index }}][label]" value="{{ $item['label'] ?? '' }}" required maxlength="180"></label>
+    <label>Type<select name="items[{{ $index }}][component_type]"><option value="task" @selected(($item['component_type'] ?? 'task') === 'task')>Task</option><option value="service" @selected(($item['component_type'] ?? '') === 'service')>Labor service</option><option value="part" @selected(($item['component_type'] ?? '') === 'part')>Part</option><option value="inspection" @selected(($item['component_type'] ?? '') === 'inspection')>Inspection</option><option value="cleaning" @selected(($item['component_type'] ?? '') === 'cleaning')>Cleaning</option></select></label>
+    <label>Quantity<input type="number" name="items[{{ $index }}][quantity]" value="{{ $item['quantity'] ?? 1 }}" min="0.01" step="0.01" required></label>
+    <label>Extra charge (Rp)<input type="number" name="items[{{ $index }}][extra_price_rupiah]" value="{{ $item['extra_price_rupiah'] ?? '' }}" min="0"></label>
+    <label>Linked service<select name="items[{{ $index }}][service_id]"><option value="">No linked service</option>@foreach($services as $service)<option value="{{ $service->id }}" @selected(($item['service_id'] ?? null) == $service->id)>{{ $service->name }}</option>@endforeach</select></label>
+    <label>Linked part<select name="items[{{ $index }}][part_id]"><option value="">No linked part</option>@foreach($parts as $part)<option value="{{ $part->id }}" @selected(($item['part_id'] ?? null) == $part->id)>{{ $part->name }}</option>@endforeach</select></label>
+    <label>Part variant<select name="items[{{ $index }}][part_variant_id]"><option value="">No specific variant</option>@foreach($parts as $part)@foreach($part->variants as $variant)<option value="{{ $variant->id }}" @selected(($item['part_variant_id'] ?? null) == $variant->id)>{{ $part->name }} — {{ $variant->name }}</option>@endforeach @endforeach</select></label>
+    <label class="admin-required-check"><input type="checkbox" name="items[{{ $index }}][is_required]" value="1" @checked($item['is_required'] ?? false)> Required</label>
+</div>

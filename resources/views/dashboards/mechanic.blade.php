@@ -1,0 +1,9 @@
+@extends('layouts.app')
+
+@section('title', 'Mechanic workspace — MINEX')
+
+@section('content')
+<section class="workspace-page"><div class="container"><div class="workspace-top"><div><p class="eyebrow"><span class="red-rule"></span>MECHANIC WORKSPACE</p><h1>Welcome, {{ auth()->user()->name }}.</h1><p>Your appointments and their approved service scope.</p></div><form method="POST" action="{{ route('logout') }}">@csrf<button class="text-link-button" type="submit">Sign out ↗</button></form></div>
+    @forelse($appointments as $appointment)@php($booking = $appointment->booking)<article class="admin-message"><div class="admin-message-head"><div><span class="eyebrow">{{ $appointment->scheduled_start_at->format('D, d M Y · H:i') }} / {{ strtoupper(str_replace('_', ' ', $appointment->status)) }}</span><h2>{{ $booking->booking_number }}</h2><p>{{ $booking->customer_name }} · {{ $booking->vehicle_snapshot['brand'] ?? '' }} {{ $booking->vehicle_snapshot['model'] ?? '' }}</p></div><span class="record-status">{{ $appointment->scheduled_end_at->format('H:i') }}</span></div><div class="booking-item-list">@foreach($booking->items as $item)<div><strong>{{ $item->label_snapshot }}</strong><small>{{ $item->description_snapshot }}</small></div>@endforeach</div>@if($booking->customer_notes)<p class="admin-message-body"><strong>Rider notes:</strong> {{ $booking->customer_notes }}</p>@endif @if($booking->workOrder)<a class="button button-outline button-small" href="{{ route('mechanic.work-orders.show', $booking->workOrder) }}">Open assigned work order ↗</a>@else<p class="field-help">The customer still needs to complete the initial payment before a work order opens.</p>@endif</article>@empty<div class="empty-workspace"><span class="empty-workspace-mark">M</span><p class="eyebrow">WORKSHOP OPERATIONS</p><h2>No appointments assigned.</h2><p>Appointments assigned to your profile will appear here.</p></div>@endforelse
+</div></section>
+@endsection

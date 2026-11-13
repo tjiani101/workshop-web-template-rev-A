@@ -1,0 +1,77 @@
+@extends('layouts.app')
+
+@section('title', 'Request a MINEX service booking')
+@section('meta_description', 'Choose your motorcycle, workshop service, and an available arrival time. MINEX confirms the final appointment and quote.')
+
+@section('content')
+<section class="plain-page-hero booking-hero"><div class="container"><p class="eyebrow"><span class="red-rule"></span>MINEX / SERVICE REQUEST</p><h1>Start with your ride.</h1><p>Choose the motorcycle in your Garage or tell us which one you ride. MINEX checks the work, parts, and workshop capacity before confirming your visit.</p></div></section>
+<section class="section-pad"><div class="container booking-layout">
+    <form action="{{ route('bookings.store') }}" method="POST" class="booking-form" data-booking-form data-labor-rates='@json($laborRates)' data-model-pricing-endpoint="{{ route('pricing.vehicle-packages') }}">
+        @csrf
+        <input type="hidden" name="submission_token" value="{{ $submissionToken }}">
+        @if($errors->any())<div class="admin-error">{{ $errors->first() }}</div>@endif
+        <nav class="booking-progress" aria-label="Booking progress"><a href="#booking-motorcycle" aria-current="step"><span>01</span> Motorcycle</a><a href="#booking-services"><span>02</span> Service</a><a href="#booking-configuration"><span>03</span> Configuration</a><a href="#booking-schedule"><span>04</span> Schedule</a><a href="#booking-review"><span>05</span> Review</a></nav>
+        <details class="booking-mobile-summary"><summary><span>Estimate summary</span><strong data-mobile-estimate-total>Choose work to see total</strong></summary><a href="#booking-estimate">Review current estimate</a></details>
+
+        <section class="booking-step" id="booking-motorcycle"><span class="eyebrow">01 / MOTORCYCLE</span><h2>Select your motorcycle.</h2>
+            @auth
+                @if($customerVehicles->isNotEmpty())
+                    <div class="garage-booking-list" data-garage-vehicles>
+                        @foreach($customerVehicles as $vehicle)
+                            <label class="garage-booking-choice"><input type="radio" name="customer_vehicle_id" value="{{ $vehicle->id }}" data-vehicle-variant-id="{{ $vehicle->variant?->id }}" data-model-year="{{ $vehicle->model_year }}" required @checked(old('customer_vehicle_id', $customerVehicles->firstWhere('is_default', true)?->id ?? $customerVehicles->first()->id) == $vehicle->id)><span><strong>{{ $vehicle->nickname ?: $vehicle->model->brand->name.' '.$vehicle->model->name }}</strong><small>{{ $vehicle->variant?->generation?->name }} · {{ $vehicle->variant?->name }} · {{ $vehicle->model_year }}@if($vehicle->registration_number) · {{ $vehicle->registration_number }}@endif</small></span><b>{{ $vehicle->model->brand->name }} {{ $vehicle->model->name }}</b></label>
+                        @endforeach
+                    </div>
+                @else
+                    <p class="booking-note">Add your motorcycle to Garage first. It will be selected for this booking automatically.</p>
+                    <div class="garage-booking-list" data-garage-vehicles></div>
+                @endif
+                <button class="button button-outline button-small" type="button" data-open-vehicle-dialog>Add a motorcycle to Garage <span aria-hidden="true">＋</span></button>
+            @else
+                <p class="booking-note">Choose the manufacturer, family, generation, model year, and factory trim. Only cataloged year and trim combinations are selectable.</p>
+                @include('partials.vehicle-picker', ['vehicleCatalogUrl' => $vehicleCatalogUrl, 'variantName' => 'vehicle_variant_id', 'selectedVariant' => old('vehicle_variant_id'), 'selectedYear' => old('model_year')])
+            @endauth
+        </section>
+
+        <section class="booking-step" id="booking-services"><span class="eyebrow">02 / SERVICE & CONFIGURATION</span><p class="booking-section-intro" id="booking-configuration">Choose your service first. Relevant product options open beneath the selected work scope.</p><h2>Choose your service.</h2><div class="booking-choice-list">
+            @forelse($services as $service)@include('partials.booking-service-choice', ['service' => $service, 'prefilledServiceIds' => $prefilledServiceIds])@empty<p class="booking-note">No public services are currently available.</p>@endforelse
+        </div>
+        @if($packages->isNotEmpty())<h2>Packages</h2><div class="booking-choice-list">@foreach($packages as $package)@php($isBoreUpChoice = str_starts_with($package->slug, 'bore-up-'))<div class="booking-package-choice" data-quote-package data-package-slug="{{ $package->slug }}" data-quote-label="{{ $package->name }}" data-base-price="{{ $isBoreUpChoice ? '' : ($package->base_price_rupiah ?? '') }}" data-labor-price="{{ $isBoreUpChoice ? '' : ($package->labor_price_rupiah ?? '') }}" data-discount="{{ $package->discount_rupiah ?? 0 }}" data-duration="{{ $package->duration_minutes ?? 0 }}"><label class="booking-choice"><input type="checkbox" name="package_ids[]" value="{{ $package->id }}" @checked(in_array($package->id, is_array(old('package_ids')) ? old('package_ids') : $prefilledPackageIds))><span><strong>{{ $package->name }}</strong><small>{{ $package->summary }} · {{ $package->duration_minutes ? $package->duration_minutes.' min estimated' : 'Duration confirmed by workshop' }}</small></span><b data-package-price-label>{{ $isBoreUpChoice ? 'Select motorcycle for a tailored estimate' : ($package->starting_price_rupiah !== null ? 'Mulai dari Rp '.number_format($package->starting_price_rupiah, 0, ',', '.') : 'Configuration requires mechanic assessment') }}</b></label>
+                @if($package->items->contains(fn ($item) => ! $item->is_required))<div class="booking-optional-list"><span class="eyebrow">OPTIONAL PACKAGE ITEMS</span>@foreach($package->items->where('is_required', false) as $item)@php($quoteUnitPrice = $item->extra_price_rupiah ?? $item->service?->labor_price_rupiah ?? $item->partVariant?->selling_price_rupiah ?? $item->part?->selling_price_rupiah)<label data-quote-option data-unit-price="{{ $quoteUnitPrice ?? '' }}" data-quantity="{{ $item->quantity }}"><input type="checkbox" name="package_options[{{ $package->id }}][]" value="{{ $item->id }}" @checked(in_array($item->id, old('package_options.'.$package->id, [])))><span>{{ $item->label }}</span><small>{{ $quoteUnitPrice !== null ? '+ Rp '.number_format($quoteUnitPrice, 0, ',', '.') : 'Price to be confirmed' }}</small></label>@endforeach</div>@endif
+            </div>@endforeach</div>@endif
+        <div class="booking-policy" data-operation-consent-panel hidden><span class="eyebrow">ENGINE BREAK-IN / MOTORCYCLE OPERATION</span><p>MINEX will keep your motorcycle for one full workshop day and an authorized mechanic may operate it as required by the engine specific, approved break-in procedure. Fuel is recorded separately: you pay 80% of documented fuel costs and MINEX covers 20%. Any budget increase needs your approval before work continues.</p><label class="booking-terms"><input type="checkbox" name="operation_consent" value="1" @checked(old('operation_consent'))><span>I authorize MINEX to operate my motorcycle for this break-in service and understand the separate fuel allocation and approval limit.</span></label></div>
+        </section>
+
+        <section class="booking-step" id="booking-schedule"><span class="eyebrow">04 / SCHEDULE</span><h2>Choose your appointment.</h2>
+            <div class="schedule-mode-switch" role="group" aria-label="Appointment selection mode"><button type="button" class="active" data-schedule-mode="automatic">Recommend earliest</button><button type="button" data-schedule-mode="manual">Choose date and time</button></div>
+            <div class="booking-fields" data-manual-date hidden><label>Visit date<input type="date" data-availability-date min="{{ today()->toDateString() }}" max="{{ today()->addDays(90)->toDateString() }}"></label></div>
+            <div class="cinema-slot-panel"><div class="slot-panel-heading"><span class="eyebrow" data-slot-heading>EARLIEST SUITABLE ARRIVAL</span><span class="slot-duration" data-slot-duration>Select work to calculate duration</span></div><div class="slot-grid" data-slot-grid aria-live="polite"><p class="booking-note">Choose your workshop work to check mechanic and bay capacity.</p></div><div class="slot-legend" aria-label="Availability legend"><span data-slot-legend="available">Available</span><span data-slot-legend="limited">Limited</span><span data-slot-legend="full">Full</span><span data-slot-legend="temporarily_held">Held</span><span data-slot-legend="break">Break</span><span data-slot-legend="closed">Closed</span></div><p class="booking-note" data-availability-status role="status">Candidate times cover the estimated job duration. A time request does not reserve a bay.</p><input type="hidden" name="preferred_start_at" data-preferred-time required></div>
+            <div class="arrival-summary" data-arrival-summary hidden><span><small>ARRIVAL</small><strong data-arrival-time></strong></span><b aria-hidden="true">→</b><span><small>ESTIMATED COMPLETION</small><strong data-completion-time></strong></span><span><small>RESERVATION</small><strong data-job-duration></strong></span></div>
+            <p class="booking-note">The workshop confirms the appointment after reviewing your request. Overnight work requires a separate workshop confirmation.</p>
+        </section>
+
+        <section class="booking-step" id="booking-review"><span class="eyebrow">05 / REVIEW</span><h2>Review your request.</h2><label class="booking-notes-field">Notes for the technician <span class="optional-label">Optional</span><textarea name="customer_notes" rows="4" maxlength="3000">{{ old('customer_notes') }}</textarea></label></section>
+
+        <section class="booking-step" id="booking-estimate"><span class="eyebrow">ESTIMATE PREVIEW</span><h2>Review your estimate.</h2><div class="booking-estimate" aria-live="polite"><div data-quote-lines><p class="booking-note">Choose a workshop service or package to preview current catalog pricing.</p></div><p class="booking-estimate-total"><span>Estimate</span><strong data-quote-total>—</strong></p><p class="booking-note" data-quote-message>Current catalog estimate; the final scope and amount are confirmed by MINEX before approval.</p></div></section>
+
+        <section class="booking-step" id="booking-confirmation"><span class="eyebrow">BOOKING CONFIRMATION</span><h2>Confirm your request.</h2><div class="booking-fields">
+            @guest<label>Your name<input name="customer_name" value="{{ old('customer_name') }}" autocomplete="name" required maxlength="120"></label><label>Email address<input type="email" name="customer_email" value="{{ old('customer_email') }}" autocomplete="email" required maxlength="254"></label>@endguest
+            @auth
+                @if(auth()->user()->phone)<div class="booking-contact-summary"><span>Phone on your profile</span><strong>{{ auth()->user()->phone }}</strong><input type="hidden" name="customer_phone" value="{{ auth()->user()->phone }}"><a href="{{ route('portal.home') }}#contact-information">Update in profile ↗</a></div>
+                @else<label>Phone number<input name="customer_phone" value="{{ old('customer_phone') }}" autocomplete="tel" required maxlength="40"><small>We’ll save this to your profile so you won’t need to enter it again.</small></label>@endif
+            @else<label>Phone number<input name="customer_phone" value="{{ old('customer_phone') }}" autocomplete="tel" required maxlength="40"></label>@endauth
+        </div>@auth<p class="booking-note">Your account name and email are attached to this request.</p>@endauth
+            @guest<input type="hidden" name="payment_percentage" value="100"><p class="booking-note">Guest requests require workshop approval and full payment of the approved amount. No payment is collected with this request.</p>@else
+                <label class="booking-payment-select">Preferred payment amount after approval<select name="payment_percentage" required>@foreach([10, 25, 50, 100] as $percentage)<option value="{{ $percentage }}" @selected(old('payment_percentage', 100) == $percentage)>{{ $percentage }}%</option>@endforeach</select></label><p class="booking-note">This preference is stored with the request. MINEX will confirm the approved amount first.</p>
+            @endguest
+            <label class="booking-terms"><input type="checkbox" name="terms_accepted" value="1" required @checked(old('terms_accepted'))><span>I understand this is a request. MINEX will confirm availability, compatibility, final scope, and price before approval.</span></label><button id="booking-submit" class="button button-red" type="submit" disabled>Send booking request <span>↗</span></button>
+        </section>
+    </form>
+
+    @auth
+    <dialog class="vehicle-quick-add-dialog" data-vehicle-dialog><form action="{{ route('portal.vehicles.store') }}" method="POST" data-quick-vehicle-form>@csrf<button class="dialog-close" type="button" data-close-vehicle-dialog aria-label="Close">×</button><p class="eyebrow">YOUR GARAGE</p><h2>Add a motorcycle.</h2>@include('partials.vehicle-picker', ['vehicleCatalogUrl' => $vehicleCatalogUrl, 'variantName' => 'variant_id', 'selectedVariant' => '', 'selectedYear' => ''])<label>Nickname <span class="optional-label">Optional</span><input name="nickname" maxlength="80" placeholder="Daily ride"></label><label>Registration number <span class="optional-label">Optional</span><input name="registration_number" maxlength="32"></label><p class="booking-note" data-quick-vehicle-status role="status"></p><button class="button button-red" type="submit">Save to Garage</button></form></dialog>
+    @endauth
+
+    <aside class="booking-aside"><div class="booking-aside-photo"><img src="{{ asset('images/service-mechanic.jpg') }}" alt="A motorcycle service being inspected at a workshop" loading="lazy"></div><span class="eyebrow">WHAT HAPPENS NEXT</span><ol><li><strong>We review the request</strong><p>MINEX checks the motorcycle, selected work, product options, and fitment questions.</p></li><li><strong>You see the confirmed quote</strong><p>Labor, parts, optional work, discounts, and deposit are explained before approval.</p></li><li><strong>Your arrival time is checked</strong><p>Mechanic skills, breaks, hours, reservations, and workshop capacity are checked against the full job duration.</p></li></ol><div class="booking-policy"><span class="eyebrow">NO PARTS RETAIL</span><p>Parts are supplied only as part of an approved workshop service or maintenance package.</p><a href="{{ route('pricing') }}">Read pricing guidance ↗</a></div><div class="vehicle-request-panel"><p>Can’t find your exact year or trim?</p><details><summary>Request a vehicle catalog entry</summary>@include('partials.vehicle-model-request-form', ['modelRequestUrl' => route('vehicle-model-requests.store')])</details></div></aside>
+</div></section>
+@push('scripts')<script src="{{ asset('js/vehicle-catalog-picker.js') }}" defer></script><script src="{{ asset('js/custom-select.js') }}" defer></script><script src="{{ asset('js/package-pricing.js') }}" defer></script><script src="{{ asset('js/booking-progress.js') }}" defer></script><script src="{{ asset('js/booking-availability.js') }}" defer></script><script src="{{ asset('js/booking-estimate.js') }}" defer></script><script src="{{ asset('js/booking-vehicle.js') }}" defer></script>@endpush
+@endsection
